@@ -1,0 +1,112 @@
+-module(ets_manager).
+-behaviour(gen_server).
+-export([start_link/0, start_link/1, init/1, handle_call/3, handle_cast/2, 
+         handle_info/2, terminate/2, code_change/3]).
+
+-include("erldata_def.hrl").
+
+%% ====================================================================
+%% API functions
+%% ====================================================================
+-export([request_table/1]).
+
+request_table(TblName) -> gen_server:call(?MODULE, {tbl_request, TblName}).
+
+%% ====================================================================
+%% Behavioural functions
+%% ====================================================================
+start_link() -> start_link([]).
+start_link(Args) -> gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
+
+%% init/1
+%% ====================================================================
+init([]) ->
+    DSconf = app_lib:load_json(?DB_CONFIG),
+    init_datastores(DSconf). %% Response is {ok, State}
+
+
+%% handle_call/3
+%% ====================================================================
+handle_call({tbl_request, TblName}, {Pid, _}, State) ->
+    {E,D} = State,
+    Me = self(),
+
+    case maps:get(TblName,E, invalid_resource) of
+    Me ->
+        ets:give_away(TblName, Pid, []),
+        {reply, {ok, TblName}, {E#{TblName=>Pid},D}};
+    invalid_resource ->
+        {reply, {error, invalid_resource}, State};
+    _ ->
+        {reply, {error, not_available}, State}
+    end.
+
+
+%% handle_info/2
+%% ====================================================================
+handle_info({'ETS-TRANSFER', TableId, _, _}, {ETS, DETS}) ->
+    {noreply, { ETS#{TableId => self()} , DETS}}.
+
+
+%% terminate/2
+%% ====================================================================
+terminate(_, {_, DETS}) -> close_tables(DETS), ok.
+
+
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+
+init_datastores(Stores) ->
+    init_store(Stores, {#{},[],[]}).
+
+init_store([], {E,D,_}) ->
+    {ok, {E,D}};
+init_store(Stores, {E,D,M}) when is_list(Stores) ->
+    [{Store,TblDefs}|Tail] = Stores,
+    
+    case Store of 
+        ets ->
+            O = init_tables(Store, TblDefs, #{}),
+            AccOut = {O,D,M};
+        dets ->
+            O = init_tables(Store, TblDefs, []),
+            AccOut = {E,O,M};
+        mnesia ->
+            O = init_tables(Store, TblDefs, ok),
+            AccOut = {E,D,O}
+    end,
+    
+    init_store(Tail, AccOut);
+init_store(Stores, {E,D,M}) when is_tuple(Stores) ->
+    init_store([Stores], {E,D,M}).
+
+init_tables(_, [], Acc) ->
+    Acc;
+init_tables(ets, TblDefs, Acc) ->
+    [{TblName, TblSpec} | Tail] = TblDefs,
+
+    R = ets:info(TblName),
+    if
+        R =:= undefined -> TblName = ets:new(TblName, [{heir, self(),[]}|TblSpec]);
+        true -> TblName
+    end,
+
+    init_tables(ets, Tail, Acc#{TblName => self()});
+init_tables(dts, TblDefs, Acc) ->
+    [{TblName, TblSpec} | Tail] = TblDefs,
+
+    {ok, _} =  dets:open_file(TblName, TblSpec),
+    init_tables(dets, Tail, [TblName | Acc]);
+init_tables(mnesia, TblDefs, _) ->
+    [{TblName, TblSpec} | Tail] = TblDefs,
+
+    case mnesia:create_table(TblName, TblSpec) of
+    {_, ok} -> ok;
+    {_, {already_exists,_}} -> ok
+    end,
+
+    init_tables(mnesia, Tail, ok).
+
+close_tables(DETS) ->
+    lists:foreach(fun dets:close/1, DETS).
