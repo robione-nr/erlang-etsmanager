@@ -12,7 +12,7 @@ The primary purpose of this module is to preserve ETS table data should the cont
       A simple gen_server to retain ownership of any ETS tables from a crashed process. Ready to return them to the proper module per their request upon restart. Should this process crash and restart it will notify any process controlling an ETS table to update the PID of the heir.
 
       API:
-       - create_table/2: Creates a named ETS table with the table options provided. It will remove duplicate named_table and heir properties.
-       - create_table/3: As above with the addition of heir data.
-       - request_table/1: Process requests a named table.
-       - update_pid/3: Called by receiving process of an 'ETS-NEWMANAGER' message specifying the name, new PID and heir data.
+   - create_table/2: Creates a named ETS table with the table options provided and registers it with the manager. It will remove named_table and heir properties set by the user.
+   - create_table/3: As above with the addition of heir data.
+   - request_table/1: Process requests a named table.
+   - update_pid/3: Called by receiving process of an 'ETS-NEWMANAGER' message specifying the name, new PID and heir data.
