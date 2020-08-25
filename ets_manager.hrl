@@ -1,0 +1,1 @@
+-define(MASTER_TABLE, etsmgr_master).
