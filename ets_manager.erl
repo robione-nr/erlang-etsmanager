@@ -11,7 +11,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([request_table/1, create_table/2, create_table/3, update_pid/3]).
+-export([request_table/1, create_table/2, create_table/3, update_heir/3]).
 
 request_table(TableId) ->
     gen_server:call(?MODULE, {tbl_request, TableId}).
@@ -22,10 +22,10 @@ create_table(TableId, TblOpts) ->
 create_table(TableId, TblOpts, HeirData) ->
     gen_server:call(?MODULE, {tbl_create, TableId, TblOpts, HeirData}).
 
-update_pid(TableId, Pid, HeirData) ->
-    case process_info(Pid, registered_name) of
-        {registered_name, ?MODULE} ->
-            ets:setopts(TableId, {heir, Pid, HeirData});
+update_heir(Module, TableId, HeirData) ->
+    case process_info(self(), registered_name) of
+        {registered_name, Module} ->
+            ets:setopts(TableId, {heir, whereis(?MODULE), HeirData});
         _ ->
             {error, eperm}
     end.
@@ -129,6 +129,6 @@ code_change(_, FallbackPID, _) ->
 xfer_state({TableId, OldPid, _, _}, OldPid) ->
     ets:delete(?MASTER_TABLE, TableId), OldPid;
 xfer_state({TableId, Pid, _, HeirData}, OldPid) ->
-    Pid ! {'ETS-NEWMANAGER', self(), TableId, HeirData}, OldPid;
+    Pid ! {'ETS-NEWMANAGER', TableId, HeirData}, OldPid;
 xfer_state({?MODULE, OldPid}, OldPid) ->
     ets:insert(?MASTER_TABLE, {?MODULE, self()}), OldPid.
