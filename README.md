@@ -15,4 +15,4 @@ The primary purpose of this module is to preserve ETS table data should the cont
        - create_table/2: Creates a named ETS table with the table options provided. It will remove duplicate named_table and heir properties.
        - create_table/3: As above with the addition of heir data.
        - request_table/1: Process requests a named table.
-       - update_pid/3: Called by receiving process of an 'ETS-NEWMANAGER' message specifying the name, new PID and heir data.
+       - update_heir/3: Called by receiving process of an 'ETS-NEWMANAGER' message indicating as the table owner to update the heir PID.
