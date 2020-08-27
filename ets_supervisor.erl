@@ -35,7 +35,7 @@ loop() ->
                                 {Type, Reason}
             end;
         {'DOWN',_,_,_,_} ->
-            case proplists:get_value(owner,ets:info(?MASTER_TABLE)) =:= self() of
+            case ets:info(?MASTER_TABLE, owner) =:= self() of
                 true -> ets:delete(?MASTER_TABLE);
                 false -> continue
             end,
